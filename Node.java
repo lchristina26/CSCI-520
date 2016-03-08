@@ -1,18 +1,58 @@
 import java.util.*;
+import java.lang.Math;
 
 public class Node {
     private int ID;
     private Calendar calendar;
+    private Log log;
     private int SUCCESS = 0;
     private int FAILURE = -1;
+    private int INSERT = 1;
+    private int DELETE = 0;
+    private int clock = 0;
+    private int[][] twoDTT;
+    private int numNodes;
 
-    public Node (int nodeID) {
+    public Node (int nodeID, int numNodes) {
         ID = nodeID;
         calendar = new Calendar();
+        log = new Log();
+        this.numNodes = numNodes;
+        twoDTT = new int[numNodes][numNodes];
+        twoDTT[ID][ID] = clock;
     }
 
     public int getID() {
         return ID;
+    }
+    public int getClock() {
+        return clock;
+    }
+    public void set2DTT(int[][] table) {
+        twoDTT = table;
+    }
+    /*
+     * Pass in the time table received and update our 2DTT from this one
+     */
+    public int[][] updateTT(int[][] inTT, int nodeID) {
+        twoDTT[ID][ID]++;
+        int row = 0;
+        int col = 0;
+        int maxNum = twoDTT[row][col];
+
+        for (int i = 0; i < numNodes; i++) {
+            row = i;
+            for (int j = 0; j < numNodes; j++) {
+                maxNum = Math.max(maxNum, inTT[j][i]);
+            }
+            twoDTT[col][row] = maxNum;
+            maxNum = 0;
+            if ((col < row) && (row == numNodes - 1)) {
+                col++;
+                i = -1;
+            }
+        }
+        return twoDTT;
     }
     
    /*
@@ -60,6 +100,10 @@ public class Node {
         }
 
         return SUCCESS; // no conflicts were found!
+    }
+
+    public void addEventToLog (Event e) {
+        log.updateLog(INSERT, e, ++clock, ID);
     }
 
 }
