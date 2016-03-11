@@ -41,15 +41,11 @@ public class Node {
         int maxNum = twoDTT[row][col];
 
         for (int i = 0; i < numNodes; i++) {
-            row = i;
+            twoDTT[ID][i] = Math.max(twoDTT[ID][i], inTT[nodeID][i]);
+        }
+        for (int i = 0; i < numNodes; i++) {
             for (int j = 0; j < numNodes; j++) {
-                maxNum = Math.max(maxNum, inTT[j][i]);
-            }
-            twoDTT[col][row] = maxNum;
-            maxNum = 0;
-            if ((col < row) && (row == numNodes - 1)) {
-                col++;
-                i = -1;
+                twoDTT[i][j] = Math.max(twoDTT[i][j], inTT[i][j]);
             }
         }
         return twoDTT;
