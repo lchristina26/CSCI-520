@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<web-app xmlns="http://java.sun.com/xml/ns/j2ee"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/web-app_2_4.xsd"
+    version="2.4">
+
+    <display-name>Distributed Calendar Application</display-name>
+    <description>
+        This is an implementation of the Wuu and Bernstein distributed log/dictionary algorithm.
+    </description>
+    
+    <servlet>
+        <servlet-name>NodePage</servlet-name>
+        <servlet-class>NodePage</servlet-class>
+    </servlet>
+    
+    <servlet-mapping>
+        <servlet-name>NodePage</servlet-name>
+        <url-pattern>/NodePage</url-pattern>
+    </servlet-mapping>
+
+</web-app>

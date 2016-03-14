@@ -1,0 +1,115 @@
+body {
+    text-align: center;
+}
+
+html { 
+background: url(images/sunset.jpg) no-repeat center center fixed; 
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+div.content {
+    background-color: rgba(5,4,2,0.4);
+    width:50%;
+    height: 100%;
+    margin-left:auto;
+    margin-right:auto;
+    padding: 15px;
+
+}
+p {
+    display: block;
+    width: 95%;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #FFF;
+    text-align: center;
+    margin: 0 auto;
+}
+
+p.italic {
+    display: inline-block;
+    font-style: italic;
+    color: #FFF;
+    text-align: center;
+    margin: 0 auto;
+}
+p.event {
+    display: block;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #FFF;
+    text-align: left;
+    padding: 0;
+    margin: 0 auto;
+    width: 95%;
+    background-color: transparent;
+}
+hr {
+    color: #F07444;
+    width: 95%;
+    margin-bottom: 15px;
+}
+
+.conButton {
+    display: block;
+    border-radius: 2px;
+    border: none;
+    height: 35px;
+    padding: 0;
+    margin: 0 auto;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    width: 95%;
+    background-color: transparent;
+    color: #FFF;
+    border: 1px solid #FFF;
+    transition: .2s ease;
+}
+.conButton:hover {
+    background-color: #F07444;
+    color: white;
+    transition: .2s ease;
+}
+h1 {
+    width: 50%;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #F07444;
+    margin: 0 auto;
+    text-align: left;
+    font-weight: bold;
+}
+h3 {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0 auto;
+    margin-bottom: 15px;
+    color: #FFF;
+    width: 95%;
+    text-align: center;
+}
+p.cal {
+    display: block;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #F07444;
+    text-align: left;
+    padding: 0;
+    margin: 0 auto;
+    width: 95%;
+    background-color: #FFF;
+}
+select {
+    display: inline-block;
+    color: #FFF;
+    background-color: transparent;
+    margin: 0 auto;
+    margin-bottom: 5px;
+    border: 1px solid #FFF;
+
+}
+.op {
+    background-color: rgba(5,4,2,0.4);
+}
+select option {
+    background-color: rgba(5,4,2,0.0);
+}
