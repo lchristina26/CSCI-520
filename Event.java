@@ -2,12 +2,12 @@ import java.util.*;
 
 public class Event {
     private String name;
-    private int day;
+    private String day;
     private double startTime;
     private double endTime;
     private int[] participants;
 
-    public Event(String name, int day, double start, double end,
+    public Event(String name, String day, double start, double end,
                     int[] participants) {
         this.name = name;
         this.day = day;
@@ -19,11 +19,20 @@ public class Event {
     public String getName() {
         return name;
     }
-    public int getDay() {
+    public String getDay() {
         return day;
     }
     public double getStart() {
         return startTime;
+    }
+    public String toTime(double timeDouble) {
+        String timeStr;
+        if ((timeDouble - 0.5) == (double)((int)(timeDouble))) {
+            timeStr = (int)timeDouble + ":30";
+        } else {
+            timeStr = (int)timeDouble + ":00";
+        }
+        return timeStr;
     }
     public double getEnd() {
         return endTime;
