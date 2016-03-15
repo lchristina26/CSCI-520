@@ -17,45 +17,11 @@ public class Run
 
     public Run() {}
 
-    public static void main(String args[]) throws Exception {
-        String nodeID = args[0];
-        int theirPort = Integer.parseInt(args[1]);
-        int myPort = Integer.parseInt(args[2]);
-        //nodeID = getRouterId();
-        //port = getPortNum();
-
-        System.out.println("Node is running on port "
-                + myPort + ". To send to " + nodeID + ":" + theirPort);
-        runRouter(nodeID, theirPort, myPort);
-    }
     // packets
     // Always listen for packets to receive
-    private static void runRouter(String nodeID, int theirPort, int myPort) throws Exception {
-        String content = "Receiving from " + nodeID + ":" + myPort;
-        System.out.println(theirPort);
-        System.out.println(myPort);
-        boolean first = true;
-
-        long startTime = System.nanoTime();
-        while (true) {
-            countUpdates++;
-            char tempRouterID = receivePackets(nodeID, myPort);
-            if (beginning) {
-                Thread.sleep(7000);
-                beginning = false;
-            } else {
-                Thread.sleep(1000);
-            }    
-            sendPacket(nodeID, theirPort, content.getBytes());
-            if (System.nanoTime() - startTime >= totalTime && timeCount == 0) {
-                timeCount++;
-            }
-        }
-    }
-
-    private static char receivePackets(String nodeID, int port)
+    public static String receivePackets(int port)
         throws IOException {
-            char toRet = 'N'; //the information to be returned from Node X
+            StringBuilder str = new StringBuilder();
             while (true) {
                 try {
                     if (recvSock == null)
@@ -67,35 +33,52 @@ public class Run
                     recvSock.receive(recvPacket);
 
                     if (recvPacket.getLength() != 4) {
-                        System.out.println("You are reading more than 4 bytes."
-                             + " Bytes read = " + recvPacket.getLength());
                         InputStreamReader input = new InputStreamReader(
-                                    new ByteArrayInputStream(data), Charset.forName("UTF-8"));
-                        StringBuilder str = new StringBuilder();
+                                new ByteArrayInputStream(data), Charset.forName("UTF-8"));
                         for (int value; (value = input.read()) != -1; )
-                                str.append((char) value);
-                        System.out.println("Received: " + str);
+                            str.append((char) value);
                     }
                 } catch (SocketTimeoutException se) {
                     // timeout expired
-                    return toRet;
+                    return str.toString(); //toRet;
                 }
             }
         }
 
-    private static void sendPacket(String nodeID, int port, byte[] data)
+    public static void sendPacket(String[] nodeIDs, int[] ports, byte[] data)
         throws Exception 
         {
             DatagramSocket sendSock = new DatagramSocket();
-            DatagramPacket sendPacket = new DatagramPacket(data, data.length,
-                    InetAddress.getByName(nodeID), port);
-            sendSock.send(sendPacket);
-            sendSock.close();
+
+            for (int i = 0; i < nodeIDs.length; i++) {
+                DatagramPacket sendPacket = new DatagramPacket(data, 
+                    data.length, InetAddress.getByName(nodeIDs[i]), ports[i]);
+                sendSock.send(sendPacket);
+                sendSock.close();
+            }
         }
-    private static byte[] toByteArray(int[] convertMe) {
-        byte[] ret = new byte[convertMe.length];
-        for (int i = 0; i < convertMe.length; i++)
-            ret[i] = (byte) convertMe[i];
-        return ret;
+    public byte[] convertTo1D(int[][] arr) {
+        int count = 0;
+        String str = "";
+        for (int i = 0; i < (arr.length*4); i++) {
+            while (count < 4) {
+                str+= (arr[i][count] + " ");
+                count++;
+            }
+            count = 0;
+        }
+        return str.getBytes();
+    }
+    public int[][] convertTo2D(String str) {
+       String[] splitStr = str.split("\\s+");
+       int[][] table = new int[4][4];
+       int count = 0;
+       for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+               table[i][j] = Integer.parseInt(splitStr[count].trim());
+               count++;
+            }
+       }
+       return table;
     }
 }

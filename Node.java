@@ -7,6 +7,7 @@ public class Node {
     private Log log;
     private int SUCCESS = 0;
     private int FAILURE = -1;
+    private int DAY_OVERLAP_FAILURE = -2;
     private int INSERT = 1;
     private int DELETE = 0;
     private int clock = 0;
@@ -35,7 +36,6 @@ public class Node {
      * Pass in the time table received and update our 2DTT from this one
      */
     public int[][] updateTT(int[][] inTT, int nodeID) {
-        twoDTT[ID][ID]++;
         int row = 0;
         int col = 0;
         int maxNum = twoDTT[row][col];
@@ -59,7 +59,8 @@ public class Node {
         if (checkForConflict(e) == FAILURE) {
             return FAILURE;
         }
-
+        clock++;
+        twoDTT[ID][ID] = clock;
         calendar.addEvent(e);
 
         return SUCCESS; // return 0 on success
@@ -78,7 +79,9 @@ public class Node {
         int numEvents = events.size();
         boolean conflict = false;
         double start = e.getStart();
-
+        double end = e.getEnd();
+        if (((end - start) <= 0) || (e.getEventLength() > 23.5))
+            return DAY_OVERLAP_FAILURE;
         // sort through all events to check for conflict
         for (int i = 0; i < numEvents; i++) {
             // if the start time of e is already taken return a failure
@@ -101,5 +104,4 @@ public class Node {
     public void addEventToLog (Event e) {
         log.updateLog(INSERT, e, ++clock, ID);
     }
-
 }

@@ -7,6 +7,7 @@ public class Event {
     private double endTime;
     private int[] participants;
 
+    // constructor to take in individual items of event
     public Event(String name, String day, double start, double end,
                     int[] participants) {
         this.name = name;
@@ -15,7 +16,18 @@ public class Event {
         endTime = end;
         this.participants = participants;
     }
-
+    // constructor to take in event as string
+//    public Event(String[] eventArray) {
+////        String[] eventArray = toEvent.split("\\s+");
+//        participants = new int[3];
+//        name = eventArray[0];
+//        day = eventArray[1];
+//        startTime = Double.parseDouble(eventArray[2]);
+//        endTime = Double.parseDouble(eventArray[3]);
+//        for (int i = 0; i < eventArray.length - 4; i++) {
+//            participants[i] = Integer.parseInt(eventArray[eventArray.length-3+i]);
+//        }
+//    }
     public String getName() {
         return name;
     }
@@ -42,5 +54,13 @@ public class Event {
     }
     public double getEventLength() {
         return endTime - startTime;
+    }
+    public String toString() {
+        String toSend =  name + " " + day + " " + startTime + " " + endTime +
+                            " ";
+        for (int i = 0; i < participants.length; i++) {
+            toSend += (participants[i]+ " ");
+        }
+        return toSend;
     }
 }

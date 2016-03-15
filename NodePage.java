@@ -5,8 +5,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.*;
 import javax.servlet.http.*;
-
-
 import java.io.IOException;
 import java.io.PrintWriter;
 
@@ -27,22 +25,33 @@ public class NodePage extends HttpServlet implements Servlet {
     private HttpSession session;
     private Node node;
     private Event event;
+    private Event newE;
     private String eventName;
     private double start;
     private double end;
     private String[] invitees;
     private int[] intInvitees;
     private String IP;
+    private Run client;
+    private int[] ports;
+    private String[] ips;
+    private String recvd = "";
+    private boolean collision;
+    private boolean sameDay;
+    byte[] collisionBytes = ("COLLISION").getBytes();
 
     public NodePage() {
         node = new Node(1, 3);
         invitees = new String[3];
         intInvitees = new int[3];
+        collision = false;
+        sameDay = true;
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException
         {
+            int ret = 0;
             response.setContentType("text/html");
             session = request.getSession(true);
 
@@ -61,7 +70,7 @@ public class NodePage extends HttpServlet implements Servlet {
             }
             String ipAddress = request.getHeader("X-FORWARDED-FOR");  
             if (ipAddress == null) {  
-                   ipAddress = request.getRemoteAddr();  
+                ipAddress = request.getRemoteAddr();  
             }
             out.println("<h3>IP: " + ipAddress + "</h3>");
 
@@ -70,13 +79,26 @@ public class NodePage extends HttpServlet implements Servlet {
                         invitees != null && eventName != null) {
                     start = Double.parseDouble(time);
                     end = start + Double.parseDouble(duration);
+                    ports = new int[invitees.length];
+                    ips = new String[invitees.length];
                     for (int i = 0; i < invitees.length; i++) {
                         intInvitees[i] = Integer.parseInt(invitees[i]);
+                        ips[i] = setIP(intInvitees[i]);
+                        ports[i] = setPort(intInvitees[i]);
                     }
                     event = new Event(eventName, day, start, end, intInvitees);
-                    int ret = node.addCalEvent(event);
-                    if (ret == 0) {
+                    // try to add event to the node's calendar
+                    ret = node.addCalEvent(event);
+                    if (ret == 0)
                         updateCalendar(event);
+                    // convert event to string for sending
+                    byte[] byteStr = event.toString().getBytes();
+                    try{
+                        client.sendPacket(ips, ports, byteStr);
+                        //                        out.println("<h3 class=\"red\">Received info: " + 
+                        //                                recvd + "</h3>");
+                    } catch(Exception e) {
+                        out.println("<h3 class=\"red\">BAD CONNECTION!</h3>");
                     }
                 }
             }
@@ -86,6 +108,25 @@ public class NodePage extends HttpServlet implements Servlet {
             time = null;
             invitees = null;
             eventName = null;
+            // read for incoming data
+            recvd = client.receivePackets(11113);
+            if (recvd != null) {
+                String[] newStr = recvd.split("\\s+");
+                if (newStr.length >= 7) {
+                    intInvitees[0] = Integer.parseInt(newStr[4].trim());
+                    intInvitees[1] = Integer.parseInt(newStr[5].trim());
+                    intInvitees[2] = Integer.parseInt(newStr[6].trim());
+                    newE = new Event(newStr[0], newStr[1],
+                            Double.parseDouble(newStr[2]),
+                            Double.parseDouble(newStr[3]), intInvitees);
+                    ret = node.addCalEvent(newE);
+                    if (ret == 0)
+                        updateCalendar(newE);
+                    out.println("<p>"+ newStr[0] + " " + newStr[1] + 
+                            " " + newStr[2]+" "+newStr[3]+" "+newStr[4]+" "+
+                            newStr[5]+ " " + newStr[6] +  "</p>");
+                } 
+            }
 
             out.println("<P>");
             out.print("<form action=\"\"");
@@ -115,6 +156,7 @@ public class NodePage extends HttpServlet implements Servlet {
             out.println("</select><br>");
             // invitees dropdown
             out.println("Invitees:<br> <select multiple id=\"invitees\" name=\"invitees\">");
+            out.println("<option value=\"1\">1</option>");
             out.println("<option value=\"2\">2</option>");
             out.println("<option value=\"3\">3</option>");
             out.println("<option value=\"4\">4</option>");
@@ -125,10 +167,16 @@ public class NodePage extends HttpServlet implements Servlet {
             // get duration
             out.println("Duration: <input type=\"text\" name=\"duration\"></p>");
             // button to create event
+            /*if (collision)
+              out.println("<h3 red>COLLISION DETECTED! PICK NEW TIME.</h3>");
+              if (!sameDay)
+              out.println("<h3 red>Event cannot span multiple days!</h3>");*/
             out.println("<input type=hidden name=\"connect\" value=\"AddedEvent\">");
             out.println("<input type=\"submit\" class=\"conButton\"" + 
                     " value=\"Add Event\">"); 
             out.println("</form>");
+            /*collision = false;
+              sameDay = true;*/
 
             out.println("<hr />");
             out.println("<p class=\"cal\">Sunday</p>");
@@ -217,6 +265,49 @@ public class NodePage extends HttpServlet implements Servlet {
                 break;
         }
 
+
+    }
+    public String setIP(int id) {
+        String ip;
+        switch(id) {
+            case 1:
+                ip = "localhost";
+                break;
+            case 2:
+                ip = "localhost";
+                break;
+            case 3:
+                ip = "localhost";
+                break;
+            case 4:
+                ip = "localhost";
+                break;
+            default:
+                ip = "badIP";
+                break;
+        }
+        return ip;
+    }
+    public int setPort(int id) {
+        int port;
+        switch(id) {
+            case 1:
+                port = 11111;
+                break;
+            case 2:
+                port = 11112;
+                break;
+            case 3:
+                port = 11113;
+                break;
+            case 4:
+                port = 11114;
+                break;
+            default:
+                port = 0000;
+                break;
+        }
+        return port;
 
     }
 }
