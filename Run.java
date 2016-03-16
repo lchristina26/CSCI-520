@@ -52,33 +52,9 @@ public class Run
 
             for (int i = 0; i < nodeIDs.length; i++) {
                 DatagramPacket sendPacket = new DatagramPacket(data, 
-                    data.length, InetAddress.getByName(nodeIDs[i]), ports[i]);
+                        data.length, InetAddress.getByName(nodeIDs[i]), ports[i]);
                 sendSock.send(sendPacket);
                 sendSock.close();
             }
         }
-    public byte[] convertTo1D(int[][] arr) {
-        int count = 0;
-        String str = "";
-        for (int i = 0; i < (arr.length*4); i++) {
-            while (count < 4) {
-                str+= (arr[i][count] + " ");
-                count++;
-            }
-            count = 0;
-        }
-        return str.getBytes();
-    }
-    public int[][] convertTo2D(String str) {
-       String[] splitStr = str.split("\\s+");
-       int[][] table = new int[4][4];
-       int count = 0;
-       for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-               table[i][j] = Integer.parseInt(splitStr[count].trim());
-               count++;
-            }
-       }
-       return table;
-    }
 }

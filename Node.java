@@ -20,7 +20,7 @@ public class Node {
         log = new Log();
         this.numNodes = numNodes;
         twoDTT = new int[numNodes][numNodes];
-        twoDTT[ID][ID] = clock;
+        twoDTT[ID-1][ID-1] = clock;
     }
 
     public int getID() {
@@ -32,35 +32,43 @@ public class Node {
     public void set2DTT(int[][] table) {
         twoDTT = table;
     }
+    public int[][] get2DTT() {
+        return twoDTT;
+    }
     /*
      * Pass in the time table received and update our 2DTT from this one
      */
-    public int[][] updateTT(int[][] inTT, int nodeID) {
+    public void updateTT(int[][] inTT, int nodeID) {
         int row = 0;
         int col = 0;
         int maxNum = twoDTT[row][col];
 
         for (int i = 0; i < numNodes; i++) {
-            twoDTT[ID][i] = Math.max(twoDTT[ID][i], inTT[nodeID][i]);
+            twoDTT[ID-1][i] = Math.max(twoDTT[ID-1][i], inTT[nodeID-1][i]);
         }
         for (int i = 0; i < numNodes; i++) {
             for (int j = 0; j < numNodes; j++) {
                 twoDTT[i][j] = Math.max(twoDTT[i][j], inTT[i][j]);
             }
         }
-        return twoDTT;
     }
-    
-   /*
-    * To add an event, first check for conflicts
-    * return: SUCCESS for no conflict, FAILURE if conflict detected
-    */
+
+    public Calendar getCal() {
+        return calendar;
+    }
+
+    /*
+     * To add an event, first check for conflicts
+     * return: SUCCESS for no conflict, FAILURE if conflict detected
+     */
     public int addCalEvent(Event e) {
         if (checkForConflict(e) == FAILURE) {
             return FAILURE;
         }
+        if (checkForConflict(e) == DAY_OVERLAP_FAILURE)
+            return DAY_OVERLAP_FAILURE;
         clock++;
-        twoDTT[ID][ID] = clock;
+        twoDTT[ID-1][ID-1] = clock;
         calendar.addEvent(e);
 
         return SUCCESS; // return 0 on success
@@ -68,6 +76,9 @@ public class Node {
 
     public void removeCalEvent(Event e) {
         calendar.removeEvent(e);
+    }
+    public void removeCalEvent(String name) {
+        calendar.removeEvent(name);
     }
 
     /* Compare start time of event with that time in the calendar and return
@@ -103,5 +114,70 @@ public class Node {
 
     public void addEventToLog (Event e) {
         log.updateLog(INSERT, e, ++clock, ID);
+    }
+    public String toString(Event e, String table) {
+        String toSend =  e.getName() + " " + e.getDay() + " " + e.getStart() +
+            " " + e.getEnd() + " " + ID + " ";
+        for (int i = 0; i < e.getParticipants().length; i++) {
+            toSend += (e.getParticipants()[i]+ " ");
+        }
+        toSend += ("Table " + table);
+        return toSend;
+    }
+
+    public void resetCalendar() {
+        calendar = new Calendar();
+    }
+    // check if an event already exists in case information is sent 
+    // multiple times in the network 
+    public boolean containsEvent(Event e) {
+        boolean eventExists = false;
+        for (Event event : calendar.getEvents()) {
+            if (e.getName().equals(event.getName())) {
+                eventExists = true;
+            }
+        }
+        return eventExists;
+    }
+
+    public String[] getCalendar() {
+        String[] dayStrings = new String[7];
+        int dayNum = -1;
+        for (int i = 0; i < 7; i++) {
+            dayStrings[i] = "";
+        }
+        for (Event event : calendar.getEvents()) {
+            switch(event.getDay()) {
+                case "Sunday":
+                    dayNum = 0;
+                    break;
+                case "Monday":
+                    dayNum = 1;
+                    break;
+                case "Tuesday":
+                    dayNum = 2;
+                    break;
+                case "Wednesday":
+                    dayNum = 3;
+                    break;
+                case "Thursday":
+                    dayNum = 4;
+                    break;
+                case "Friday":
+                    dayNum = 5;
+                    break;
+                case "Saturday":
+                    dayNum = 6;
+                    break;
+                default:
+                    break;
+            }
+            if (dayNum >= 0) {
+                dayStrings[dayNum] += ("<p class=\"event\">"+event.getName()+
+                                "<br>" + event.toTime(event.getStart())+" - "+
+                                    event.toTime(event.getEnd()) + "</p>");
+            }
+        }
+        return dayStrings;
     }
 }

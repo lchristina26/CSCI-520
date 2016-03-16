@@ -17,6 +17,7 @@ public class NodePage extends HttpServlet implements Servlet {
     private String thursdayString = "";
     private String fridayString = "";
     private String saturdayString = "";
+    private String[] dayStrings;
     private String addEvent;
     private String clearCal;
     private String day;
@@ -39,13 +40,16 @@ public class NodePage extends HttpServlet implements Servlet {
     private boolean collision;
     private boolean sameDay;
     byte[] collisionBytes = ("COLLISION").getBytes();
+    private int[][] table;
+    private String tableStr;
 
     public NodePage() {
-        node = new Node(1, 3);
+        node = new Node(3, 4);
         invitees = new String[3];
         intInvitees = new int[3];
         collision = false;
         sameDay = true;
+        dayStrings = new String[7];
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -83,22 +87,34 @@ public class NodePage extends HttpServlet implements Servlet {
                     ips = new String[invitees.length];
                     for (int i = 0; i < invitees.length; i++) {
                         intInvitees[i] = Integer.parseInt(invitees[i]);
-                        ips[i] = setIP(intInvitees[i]);
-                        ports[i] = setPort(intInvitees[i]);
+                        ips[i] = getIP(intInvitees[i]);
+                        ports[i] = getPort(intInvitees[i]);
                     }
                     event = new Event(eventName, day, start, end, intInvitees);
                     // try to add event to the node's calendar
-                    ret = node.addCalEvent(event);
-                    if (ret == 0)
-                        updateCalendar(event);
-                    // convert event to string for sending
-                    byte[] byteStr = event.toString().getBytes();
-                    try{
-                        client.sendPacket(ips, ports, byteStr);
-                        //                        out.println("<h3 class=\"red\">Received info: " + 
-                        //                                recvd + "</h3>");
-                    } catch(Exception e) {
-                        out.println("<h3 class=\"red\">BAD CONNECTION!</h3>");
+                    if (!node.containsEvent(event)) {
+                        ret = node.addCalEvent(event);
+                        if (ret == 0) {
+                            updateCalendar(event);
+                            tableStr = convertTo1D(node.get2DTT());
+                            // convert event to string for sending
+                            byte[] byteStr = node.toString(event, tableStr).
+                                                                  getBytes();
+                            try{
+                                client.sendPacket(ips, ports, byteStr);
+                            } catch(Exception e) {
+                                out.println("<h3 class=\"red\">BAD" +
+                                                        " CONNECTION!</h3>");
+                            }
+                        } else if (ret == -1) {
+                            out.println("<script>");
+                            out.println("alert(\"Time Slot Full!" +
+                                                        " Pick new time.\")");
+                            out.println("</script>");
+                            node.removeCalEvent(event);
+                        } else {
+                            node.removeCalEvent(event);
+                        }
                     }
                 }
             }
@@ -112,6 +128,9 @@ public class NodePage extends HttpServlet implements Servlet {
             recvd = client.receivePackets(11113);
             if (recvd != null) {
                 String[] newStr = recvd.split("\\s+");
+                if (recvd.contains("COLLISION")) {
+                    node.removeCalEvent(newStr[1].trim());
+                }
                 if (newStr.length >= 7) {
                     intInvitees[0] = Integer.parseInt(newStr[4].trim());
                     intInvitees[1] = Integer.parseInt(newStr[5].trim());
@@ -120,14 +139,36 @@ public class NodePage extends HttpServlet implements Servlet {
                             Double.parseDouble(newStr[2]),
                             Double.parseDouble(newStr[3]), intInvitees);
                     ret = node.addCalEvent(newE);
-                    if (ret == 0)
+                    if (ret == 0) {
                         updateCalendar(newE);
-                    out.println("<p>"+ newStr[0] + " " + newStr[1] + 
-                            " " + newStr[2]+" "+newStr[3]+" "+newStr[4]+" "+
-                            newStr[5]+ " " + newStr[6] +  "</p>");
+                        out.println("<p>"+ newStr[0] + " " + newStr[1] + 
+                                " " + newStr[2]+" "+newStr[3]+" "+newStr[4]+" "+
+                                newStr[5]+ " " + newStr[6]+" "+newStr[7]+"</p>");
+                        table = convertTo2D(recvd);
+                        if (table[0].length != 4) {
+                            out.println("<h3 class=\"red\">BAD TABLE!</h3>");
+                        } else {
+                            node.updateTT(table, Integer.parseInt(newStr[4]
+                                        .trim()));
+                        }
+                    } else if (ret == -1) {
+                        String collision = "COLLISION " + newE.getName();
+                        byte[] coll = collision.getBytes();
+                        int id = Integer.parseInt(newStr[7].trim());
+                        String[] singleIP = {getIP(id)};
+                        int[] singlePort = {getPort(id)};
+                        try {
+                            client.sendPacket(singleIP, singlePort, coll);
+                            node.removeCalEvent(newE);
+                        } catch (Exception e) {
+                            out.println("<h3 class=\"red\">CANT SEND</h3>");
+                        }
+                    } else {
+                        node.removeCalEvent(newE);
+                    }
                 } 
             }
-
+            dayStrings = node.getCalendar(); //update days to post to cal
             out.println("<P>");
             out.print("<form action=\"\"");
             out.println("method=POST>");
@@ -180,19 +221,19 @@ public class NodePage extends HttpServlet implements Servlet {
 
             out.println("<hr />");
             out.println("<p class=\"cal\">Sunday</p>");
-            out.print(sundayString);
+            out.print(dayStrings[0]);
             out.println("<p class=\"cal\">Monday</p>");
-            out.print(mondayString);
+            out.print(dayStrings[1]);
             out.println("<p class=\"cal\">Tuesday</p>");
-            out.print(tuesdayString);
+            out.print(dayStrings[2]);
             out.println("<p class=\"cal\">Wednesday</p>");
-            out.print(wednesdayString);
+            out.print(dayStrings[3]);
             out.println("<p class=\"cal\">Thursday</p>");
-            out.print(thursdayString);
+            out.print(dayStrings[4]);
             out.println("<p class=\"cal\">Friday</p>");
-            out.print(fridayString);
+            out.print(dayStrings[5]);
             out.println("<p class=\"cal\">Saturday</p>");
-            out.print(saturdayString);
+            out.print(dayStrings[6]);
 
             // button to reset session
             out.println("<P>");
@@ -222,13 +263,8 @@ public class NodePage extends HttpServlet implements Servlet {
         doGet(request, response);
     }
     public void clearStrings() {
-        sundayString = "";
-        mondayString = "";
-        tuesdayString = "";
-        wednesdayString = "";
-        thursdayString = "";
-        fridayString = "";
-        saturdayString = "";
+        node.resetCalendar();
+        dayStrings = node.getCalendar();
     }
 
     public void updateCalendar(Event e) {
@@ -267,7 +303,7 @@ public class NodePage extends HttpServlet implements Servlet {
 
 
     }
-    public String setIP(int id) {
+    public String getIP(int id) {
         String ip;
         switch(id) {
             case 1:
@@ -288,7 +324,7 @@ public class NodePage extends HttpServlet implements Servlet {
         }
         return ip;
     }
-    public int setPort(int id) {
+    public int getPort(int id) {
         int port;
         switch(id) {
             case 1:
@@ -309,5 +345,35 @@ public class NodePage extends HttpServlet implements Servlet {
         }
         return port;
 
+    }
+    public String convertTo1D(int[][] arr) {
+        int count = 0;
+        String str = "";
+        for (int i = 0; i < 4; i++) {
+            while (count < 4) {
+                str+= (arr[i][count] + " ");
+                count++;
+            }
+            count = 0;
+        }
+        //        str = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0";
+        return str;
+    }
+    public int[][] convertTo2D(String str) {
+        String[] splitStr = str.split("\\s+");
+        int[][] table = new int[4][4];
+        if (!str.contains("Table") || splitStr.length < 25) {
+            table = new int[1][1];
+            table[0][0] = -1;
+        } else {
+            int count = 9;
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    table[i][j] = Integer.parseInt(splitStr[count].trim());
+                    count++;
+                }
+            }
+        }
+        return table;
     }
 }
