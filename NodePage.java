@@ -42,9 +42,16 @@ public class NodePage extends HttpServlet implements Servlet {
     byte[] collisionBytes = ("COLLISION").getBytes();
     private int[][] table;
     private String tableStr;
+    private String delName;
+    private String delEvent;
+    private String check;
+    private String startAvail;
+    private String durAvail;
+    private String idAvail;
+    private String availability;
 
     public NodePage() {
-        node = new Node(3, 4);
+        node = new Node(4, 4);
         invitees = new String[3];
         intInvitees = new int[3];
         collision = false;
@@ -62,7 +69,7 @@ public class NodePage extends HttpServlet implements Servlet {
             PrintWriter out = response.getWriter();
             out.println("<html>");
             out.println("<head>");
-            out.println("<h1>Node 1 Calendar</h1>");
+            out.println("<h1>Node 4 Calendar</h1>");
             out.println("<link rel=\"stylesheet\" type=\"text/css\" href=\"" +
                     "./css/style.css\">");
             out.println("</head>");
@@ -87,8 +94,9 @@ public class NodePage extends HttpServlet implements Servlet {
                     ips = new String[invitees.length];
                     for (int i = 0; i < invitees.length; i++) {
                         intInvitees[i] = Integer.parseInt(invitees[i]);
-                        ips[i] = getIP(intInvitees[i]);
-                        ports[i] = getPort(intInvitees[i]);
+                        ips[i] = getIP(invitees[i]);
+                        if (!ips[0].equals("None"))
+                            ports[i] = getPort(intInvitees[i]);
                     }
                     event = new Event(eventName, day, start, end, intInvitees);
                     // try to add event to the node's calendar
@@ -98,23 +106,61 @@ public class NodePage extends HttpServlet implements Servlet {
                             updateCalendar(event);
                             tableStr = convertTo1D(node.get2DTT());
                             // convert event to string for sending
-                            byte[] byteStr = node.toString(event, tableStr).
-                                                                  getBytes();
-                            try{
-                                client.sendPacket(ips, ports, byteStr);
-                            } catch(Exception e) {
-                                out.println("<h3 class=\"red\">BAD" +
-                                                        " CONNECTION!</h3>");
+                            if (!ips[0].contains("None"))
+                            {
+                                byte[] byteStr = node.toString(event, tableStr).
+                                    getBytes();
+                                try{
+                                    client.sendPacket(ips, ports, byteStr);
+                                } catch(Exception e) {
+                                    out.println("<h3 class=\"red\">BAD" +
+                                            " CONNECTION!</h3>");
+                                }
                             }
                         } else if (ret == -1) {
                             out.println("<script>");
                             out.println("alert(\"Time Slot Full!" +
-                                                        " Pick new time.\")");
+                                    " Pick new time.\")");
                             out.println("</script>");
                             node.removeCalEvent(event);
                         } else {
                             node.removeCalEvent(event);
                         }
+                    }
+                }
+            }
+            // check availability was clicked
+            if (check != null) {
+                String[] ids = idAvail.split("\\s+");
+                double s = Double.parseDouble(startAvail.trim());
+                double d = Double.parseDouble(durAvail.trim());
+                for (int i = 0; i < node.getOtherCals().length; i++) {
+                    if (node.getOtherCals()[i] != null) {
+                        if (node.checkOtherAvail(i, s, d))
+                            availability += (i + " is available!\n");
+                        else
+                            availability += (i + " is NOT available!\n");
+                    }
+                }
+            }
+            // If the delete button was clicked, attempt to delete event
+            if (delEvent != null) {
+                Event toDelete = node.getEventByName(delName);
+                if (toDelete != null) {
+                    int[] delIDs = toDelete.getParticipants();
+                    String[] delIPs = new String[delIDs.length];
+                    int[] delPorts = new int[delIDs.length];
+                    for (int i = 0; i < delIDs.length; i++) {
+                        delIPs[i] = getIP(Integer.toString(delIDs[i]));
+                        delPorts[i] = getPort(delIDs[i]);
+                    }
+                    String del = toDelete.toDelString();
+                    node.removeCalEvent(toDelete);
+                    try{
+                        client.sendPacket(delIPs, delPorts, del.getBytes());
+                    } catch(Exception e) {
+                        out.println("<h3 class=\"red\">BAD" +
+                                " CONNECTION: Delete Event Action!</h3>");
                     }
                 }
             }
@@ -125,13 +171,17 @@ public class NodePage extends HttpServlet implements Servlet {
             invitees = null;
             eventName = null;
             // read for incoming data
-            recvd = client.receivePackets(11113);
+            recvd = client.receivePackets(11114);
             if (recvd != null) {
                 String[] newStr = recvd.split("\\s+");
                 if (recvd.contains("COLLISION")) {
                     node.removeCalEvent(newStr[1].trim());
-                }
-                if (newStr.length >= 7) {
+                } else if (recvd.contains("DELETE")) {
+                    Event delEvent = node.getEventByName(newStr[1].trim());
+                    if (delEvent != null) {
+                        node.removeCalEvent(delEvent);
+                    }
+                } else if (newStr.length >= 7) {
                     intInvitees[0] = Integer.parseInt(newStr[4].trim());
                     intInvitees[1] = Integer.parseInt(newStr[5].trim());
                     intInvitees[2] = Integer.parseInt(newStr[6].trim());
@@ -154,9 +204,9 @@ public class NodePage extends HttpServlet implements Servlet {
                     } else if (ret == -1) {
                         String collision = "COLLISION " + newE.getName();
                         byte[] coll = collision.getBytes();
-                        int id = Integer.parseInt(newStr[7].trim());
+                        String id = newStr[7];
                         String[] singleIP = {getIP(id)};
-                        int[] singlePort = {getPort(id)};
+                        int[] singlePort = {getPort(Integer.parseInt(id.trim()))};
                         try {
                             client.sendPacket(singleIP, singlePort, coll);
                             node.removeCalEvent(newE);
@@ -172,7 +222,19 @@ public class NodePage extends HttpServlet implements Servlet {
             out.println("<P>");
             out.print("<form action=\"\"");
             out.println("method=POST>");
-
+            
+            // check if users are available to add event
+            out.println("<p>Event Start Time:</p><input type=\"text\"" +
+                            " name=\"checkStart\">");
+            out.println("<p>Event Duration:</p><input type=\"text\"" +
+                            " name=\"checkDuration\">");
+            out.println("<p>Participants(space sep):</p><input type=\"text\"" +
+                            " name=\"checkIDs\">");
+            out.println("<input type=hidden name=\"checkAvail\" value=\"checkAvail\">");
+            out.println("<input type=\"submit\" class=\"conButton\"" + 
+                    " value=\"Check Availability\">"); 
+            out.println(availability);
+            availability = "";
             // dropdown for the day to add event
             out.println("<p>Day: <select id=\"theDay\" name=\"theDay\">");
             out.println("<option class=\"op\" value=\"Sunday\">Sunday</option>");
@@ -197,6 +259,7 @@ public class NodePage extends HttpServlet implements Servlet {
             out.println("</select><br>");
             // invitees dropdown
             out.println("Invitees:<br> <select multiple id=\"invitees\" name=\"invitees\">");
+            out.println("<option value=\"None\">None</option>");
             out.println("<option value=\"1\">1</option>");
             out.println("<option value=\"2\">2</option>");
             out.println("<option value=\"3\">3</option>");
@@ -215,6 +278,14 @@ public class NodePage extends HttpServlet implements Servlet {
             out.println("<input type=hidden name=\"connect\" value=\"AddedEvent\">");
             out.println("<input type=\"submit\" class=\"conButton\"" + 
                     " value=\"Add Event\">"); 
+            out.println("<hr />");
+            // Delete event by name
+            out.println("<h3>REMOVE EVENT FROM CALENDAR</h3>");
+            out.println("<p>Event Name:</p><input type=\"text\""+ 
+                    " name=\"deleteName\">");
+            out.println("<input type=hidden name=\"delete\" value=\"deleteEvent\">");
+            out.println("<input type=\"submit\" class=\"conButton\"" + 
+                    " value=\"Delete Event\">"); 
             out.println("</form>");
             /*collision = false;
               sameDay = true;*/
@@ -259,6 +330,12 @@ public class NodePage extends HttpServlet implements Servlet {
         duration = request.getParameter("duration");
         eventName = request.getParameter("eventName");
         invitees = request.getParameterValues("invitees");
+        delName = request.getParameter("deleteName");
+        delEvent = request.getParameter("delete");
+        check = request.getParameter("checkAvail");
+        startAvail = request.getParameter("checkStart");
+        durAvail = request.getParameter("checkDuration");
+        idAvail = request.getParameter("checkIDs");
         //IP = request.getRemoteAddr();
         doGet(request, response);
     }
@@ -303,20 +380,26 @@ public class NodePage extends HttpServlet implements Servlet {
 
 
     }
-    public String getIP(int id) {
+    public String getIP(String idStr) {
         String ip;
+        int id;
+
+        if (idStr.trim().equals("None")) {
+            return "None";
+        }
+        id = Integer.parseInt(idStr.trim());
         switch(id) {
             case 1:
-                ip = "localhost";
+                ip = "52.87.126.232";
                 break;
             case 2:
-                ip = "localhost";
+                ip = "52.87.110.153";
                 break;
             case 3:
-                ip = "localhost";
+                ip = "52.23.44.51";
                 break;
             case 4:
-                ip = "localhost";
+                ip = "52.200.9.240";
                 break;
             default:
                 ip = "badIP";
@@ -356,7 +439,6 @@ public class NodePage extends HttpServlet implements Servlet {
             }
             count = 0;
         }
-        //        str = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0";
         return str;
     }
     public int[][] convertTo2D(String str) {

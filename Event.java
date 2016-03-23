@@ -43,4 +43,7 @@ public class Event {
     public double getEventLength() {
         return endTime - startTime;
     }
+    public String toDelString() {
+        return "DELETE " + name;
+    }
 }

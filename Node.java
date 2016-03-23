@@ -4,6 +4,7 @@ import java.lang.Math;
 public class Node {
     private int ID;
     private Calendar calendar;
+    private Calendar[] otherCals;
     private Log log;
     private int SUCCESS = 0;
     private int FAILURE = -1;
@@ -21,6 +22,14 @@ public class Node {
         this.numNodes = numNodes;
         twoDTT = new int[numNodes][numNodes];
         twoDTT[ID-1][ID-1] = clock;
+        // init other node's calendars
+        otherCals = new Calendar[numNodes];
+        for (int i = 0; i < otherCals.length; i++) {
+            if (i == ID)
+                otherCals[i] = null;
+            else
+                otherCals[i] = new Calendar();
+        }
     }
 
     public int getID() {
@@ -28,6 +37,9 @@ public class Node {
     }
     public int getClock() {
         return clock;
+    }
+    public Calendar[] getOtherCals() {
+        return otherCals;
     }
     public void set2DTT(int[][] table) {
         twoDTT = table;
@@ -79,6 +91,17 @@ public class Node {
     }
     public void removeCalEvent(String name) {
         calendar.removeEvent(name);
+    }
+
+    public void updateOthers(int otherID, String eName, String operator) {
+        if (operator.equals("insert"))
+            otherCals[otherID].addEvent(eName);
+        else if (operator.equals("delete"))
+            otherCals[otherID].removeEvent(eName);
+    }
+
+    public boolean checkOtherAvail(int otherID, double start, double duration) {
+        return otherCals[otherID].isAvailable(start, duration);
     }
 
     /* Compare start time of event with that time in the calendar and return
@@ -138,6 +161,16 @@ public class Node {
             }
         }
         return eventExists;
+    }
+
+    public Event getEventByName(String eName) {
+        Event e = null;
+        for (Event event : calendar.getEvents()) {
+            if (event.getName().equals(eName)) {
+                return event;
+            }
+        }
+        return e;
     }
 
     public String[] getCalendar() {
