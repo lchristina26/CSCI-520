@@ -48,7 +48,7 @@ public class Run
     public static void sendPacket(int nodeID, byte[] data)
         throws Exception 
         {
-            int port;
+            int port = 11111;
             String ip;
             if (nodeID == 1) {
                 port = 11111;

@@ -91,17 +91,18 @@ public class Node {
         calendar.addEvent(e);
         log.updateLog("INSERT", e, clock, ID); 
         String tableStr = convertTo1D(twoDTT);
-        ret = sendPartialLog(e, tableStr);
+        ret = sendPartialLog(tableStr);
         return ret; // return 0 on success
     }
 
-    public int sendPartialLog(Event e, String tableStr) {
-        for (int part : e.getParticipants()) {
-            if (part != ID) {
-                String NP = getPartialLog(part);
-                byte [] byteStr = (NP + " TABLE: " + tableStr).getBytes();//+ toString(e, tableStr)).getBytes();
+    public int sendPartialLog(String tableStr) {
+        for (int k = 1; k < numNodes+1; k++) {
+            if (k != ID) {
+                String NP = getPartialLog(k);
+                byte [] byteStr = (NP + " TABLE: " + tableStr + " ID " + ID).
+                            getBytes();
                 try {
-                    client.sendPacket(part, byteStr);
+                    client.sendPacket(k, byteStr);
                 } catch (Exception x) {
                     return BAD_CONNECTION;
                 }
@@ -115,7 +116,7 @@ public class Node {
         twoDTT[ID-1][ID-1] = clock;
         log.updateLog("DELETE", e, clock, ID);
         String tableStr = convertTo1D(twoDTT);
-        int ret = sendPartialLog(e, tableStr);
+        int ret = sendPartialLog(tableStr);
         return ret;
     }
     public void removeCalEvent(String name) {
@@ -204,6 +205,10 @@ public class Node {
 
     public void resetCalendar() {
         calendar = new Calendar();
+    }
+
+    public void resetLog() {
+        log = new Log();
     }
     // check if an event already exists in case information is sent 
     // multiple times in the network 
@@ -329,6 +334,7 @@ public class Node {
                     if (!containsEvent(newE))
                         eventList.add(newE);
                 }
+                partic = new ArrayList<Integer>();
             }
         }
         return eventList;

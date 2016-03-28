@@ -34,34 +34,30 @@ public class NodePage extends HttpServlet implements Servlet {
     private String tableStr;
     private String delName;
     private String delEvent;
-    private String check;
-    private String startAvail;
-    private String durAvail;
-    private String idAvail;
-    private String availability = "";
-    private String dayAvail;
 
     public NodePage() {
-        node = new Node(1, 4);
-        //invitees = new String[3];
+        node = new Node(3, 4);
         dayStrings = new String[7];
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         int ret = 0;
         int[] intInvitees;
+
         response.setContentType("text/html");
+        // Set refresh, autoload time as 5 seconds
+        response.addHeader("Refresh", "2");
+
         session = request.getSession(true);
 
         PrintWriter out = response.getWriter();
         out.println("<html>");
         out.println("<head>");
-        out.println("<h1>Node 4 Calendar</h1>");
+        out.println("<h1>Node "+ node.getID() +" Calendar</h1>");
         out.println("<link rel=\"stylesheet\" type=\"text/css\" href=\"" +
                 "./css/style.css\">");
         out.println("</head>");
         out.println("<div class=\"content\">");
-        out.println("<h3>CHECK NODE AVAILABILITIES</h3>");
         out.println("<body>");
         if (clearCal != null) {
             clearStrings();
@@ -78,8 +74,10 @@ public class NodePage extends HttpServlet implements Servlet {
                     intInvitees = new int[invitees.length+1];
                     intInvitees[0] = node.getID();
                     for (int i = 1; i < invitees.length+1; i++) {
+                        //out.println("Invitees "+i+": "+invitees[i-1]);
                         intInvitees[i] = Integer.parseInt(invitees[i-1]);
                     }
+                    
                 } else {
                     intInvitees = new int[1];
                     intInvitees[0] = node.getID();
@@ -87,14 +85,13 @@ public class NodePage extends HttpServlet implements Servlet {
                 event = new Event(eventName, day, start, end, intInvitees);
                 // try to add event to the node's calendar
                 if (!node.containsEvent(event)) {
-                  //out.println(node.get2DTT()[node.getID()-1][node.getID()-1]);
+                    //out.println(node.get2DTT()[node.getID()-1][node.getID()-1]);
                     ret = node.addCalEvent(event);
                     if (ret == -1) {
-                 //       out.println("<script>");
-                 //       out.println("alert(\"Time Slot Full!" +
-                 //               " Pick new time.\")");
-                 //       out.println("</script>");
-                 //       node.removeCalEvent(event);
+                        out.println("<script>");
+                        out.println("alert(\"FAILURE!\")");
+                        out.println("</script>");
+                        //       node.removeCalEvent(event);
                     } else if (ret == -2) {
                         out.println("<p>DAY OVERLAPS NOT ALLOWED!<br></p>");
                         node.removeCalEvent(event);
@@ -105,25 +102,8 @@ public class NodePage extends HttpServlet implements Servlet {
                 }
             }
         }
-        // Check Availability was clicked
-        if (check != null) {
-            String[] ids = idAvail.split("\\s+");
-            double s = Double.parseDouble(startAvail.trim());
-            double d = Double.parseDouble(durAvail.trim());
-            for (int i = 0; i < ids.length; i++) {
-                if (node.getOtherCals()[i] != null) {
-                    if (node.checkOtherAvail(i, s, d, dayAvail.trim()))
-                        availability += ("<p>" + i + " is available!\n</p>");
-                    else
-                        availability += ("<p>" + i + " is NOT available!\n</p>");
-                }
-            }
-        }
-        check = null;
-        dayAvail = null;
-        idAvail = null;
-        startAvail = null;
-        durAvail = null;
+        invitees = null;
+
         // If the delete button was clicked, attempt to delete event
         if (delEvent != null) {
             Event toDelete = node.getEventByName(delName);
@@ -140,12 +120,11 @@ public class NodePage extends HttpServlet implements Servlet {
         day = null;
         duration = null;
         time = null;
-        invitees = null;
         eventName = null;
         // read for incoming data
-        recvd = client.receivePackets(11111);
+        recvd = client.receivePackets(11113);
         if (recvd != null) {
-            out.println("<p>RECEIVED: "+recvd+"</p>");
+        //    out.println("<p>RECEIVED: "+recvd+"</p>");
             String[] newStr = recvd.split("\\s+");
             if (recvd.contains("COLLISION")) {
                 node.removeCalEvent(newStr[1].trim());
@@ -156,7 +135,6 @@ public class NodePage extends HttpServlet implements Servlet {
                     }
                 }
             } else if (newStr.length >= 7) {
-                int numParticipants = 0;
                 ArrayList<Event> eList = node.readLog(newStr);
                 for (int i = 0; i < eList.size(); i++) {
                     ret = node.addCalEvent(eList.get(i));
@@ -165,8 +143,8 @@ public class NodePage extends HttpServlet implements Servlet {
                         if (table[0].length != 4) {
                             out.println("<h3 class=\"red\">BAD TABLE!</h3>");
                         } else {
-                            node.updateTT(table, Integer.parseInt(newStr[4]
-                                        .trim()));
+                            node.updateTT(table, Integer.parseInt(
+                                              newStr[newStr.length-1].trim()));
                         }
                     } else if (ret == -1) {
                         String collision = "COLLISION " + newE.getName();
@@ -188,27 +166,9 @@ public class NodePage extends HttpServlet implements Servlet {
             } 
         }
         dayStrings = node.getCalendar(); //update days to post to cal
-        out.println("<P>");
-        out.print("<form action=\"\"");
-        out.println("method=POST>");
 
-        // check if users are available to add event
-        out.println("<p>Event Day:<input type=\"text\"" +
-                " name=\"checkDay\">");
-        out.println("Event Start Time:<input type=\"text\"" +
-                " name=\"checkStart\">");
-        out.println("<br><br>Event Duration:<input type=\"text\"" +
-                " name=\"checkDuration\">");
-        out.println("Participants:<input type=\"text\"" +
-                " name=\"checkIDs\"></p>");
-        out.println("<input type=hidden name=\"checkAvail\" value=\"checkAvail\">");
-        out.println("<input type=\"submit\" class=\"conButton\"" + 
-                " value=\"Check Availability\">"); 
         //out.println("<script>alert(availability)</script>");
         out.println("<h3>ADD NEW EVENT TO CALENDAR</h3>");
-        out.println("<p>" + availability + "</p>");
-        availability = "";
-        out.println("</form>");
 
         out.println("<P>");
         out.print("<form action=\"\"");
@@ -307,15 +267,11 @@ public class NodePage extends HttpServlet implements Servlet {
         invitees = request.getParameterValues("invitees");
         delName = request.getParameter("deleteName");
         delEvent = request.getParameter("delete");
-        check = request.getParameter("checkAvail");
-        startAvail = request.getParameter("checkStart");
-        durAvail = request.getParameter("checkDuration");
-        idAvail = request.getParameter("checkIDs");
-        dayAvail = request.getParameter("checkDay");
         doGet(request, response);
     }
     public void clearStrings() {
         node.resetCalendar();
+        node.resetLog();
         dayStrings = node.getCalendar();
     }
 
@@ -372,18 +328,13 @@ public class NodePage extends HttpServlet implements Servlet {
     public int[][] convertTo2D(String str) {
         String[] splitStr = str.split("\\s+");
         int[][] table = new int[4][4];
-       // if (!str.contains("Table") || splitStr.length < 25) {
-       //     table = new int[1][1];
-       //     table[0][0] = -1;
-       // } else {
-            int count = splitStr.length - 16;
-            for (int i = 0; i < 4; i++) {
-                for (int j = 0; j < 4; j++) {
-                    table[i][j] = Integer.parseInt(splitStr[count].trim());
-                    count++;
-                }
+        int count = splitStr.length - 18;
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                table[i][j] = Integer.parseInt(splitStr[count].trim());
+                count++;
             }
-       // }
+        }
         return table;
     }
 }
