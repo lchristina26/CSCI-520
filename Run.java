@@ -45,6 +45,31 @@ public class Run
             }
         }
 
+    public static void sendPacket(int nodeID, byte[] data)
+        throws Exception 
+        {
+            int port;
+            String ip;
+            if (nodeID == 1) {
+                port = 11111;
+                ip = "52.87.126.232";
+            } else if (nodeID == 2) {
+                port = 11112;
+                ip = "52.87.110.153";
+            }else if (nodeID == 3) {
+                port = 11113;
+                ip = "52.23.44.51";
+            } else {
+                port = 11114;
+                ip = "52.200.9.240";
+            }
+            DatagramSocket sendSock = new DatagramSocket();
+
+            DatagramPacket sendPacket = new DatagramPacket(data, 
+                    data.length, InetAddress.getByName(ip), port);
+            sendSock.send(sendPacket);
+            sendSock.close();
+        }
     public static void sendPacket(String[] nodeIDs, int[] ports, byte[] data)
         throws Exception 
         {

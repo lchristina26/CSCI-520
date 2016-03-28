@@ -23,6 +23,16 @@ public class Calendar {
         }
     }
 
+    public Event getEventByName(String eName) {
+        Event ret = null; 
+        for (Event event : events) {
+            if (event.getName().equals(eName)) {
+                ret = event;
+            }
+        }
+        return ret;
+    }
+
     // add event by name of event
     public void addEvent(String name) {
         for (Event event : events) {
@@ -37,16 +47,16 @@ public class Calendar {
         return events;
     }
 
-    public boolean isAvailable(double start, double duration) {
+    public boolean isAvailable(double start, double duration, String dayCheck) {
         double count = 0.0;
         for (Event event : events) {
             double st = event.getStart();
             count = 0.0;
-            if (st == start) {
+            if (dayCheck == event.getDay() && st == start) {
                 return false;
             } else {
                 while(count < duration) {
-                    if (st == (start + count))
+                    if (st == (start + count) && dayCheck == event.getDay())
                         return false;
                     count+=0.5;
                 }

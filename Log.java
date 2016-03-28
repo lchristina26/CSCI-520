@@ -6,22 +6,17 @@ public class Log {
     public Log() {
         logEvents = new ArrayList<LogEvent>();
     }
-    
-    public void updateLog(int indel, Event e, int clock, int nodeID) {
+
+    public void updateLog(String operator, Event e, int clock, int nodeID) {
         LogEvent newEvent = new LogEvent();
-        newEvent.indel = indel;
+        newEvent.operator = operator;
         newEvent.event = e;
         newEvent.clock = clock;
         newEvent.nodeID = nodeID;
         logEvents.add(newEvent);
     }
 
-    public static class LogEvent {
-        public int indel;
-        public Event event;
-        public int clock;
-        public int nodeID;
-
-        public LogEvent() {}
+    public ArrayList<LogEvent> getLog() {
+        return logEvents;
     }
 }

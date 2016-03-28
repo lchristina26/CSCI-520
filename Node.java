@@ -9,11 +9,13 @@ public class Node {
     private int SUCCESS = 0;
     private int FAILURE = -1;
     private int DAY_OVERLAP_FAILURE = -2;
+    private int BAD_CONNECTION = -3;
     private int INSERT = 1;
     private int DELETE = 0;
     private int clock = 0;
     private int[][] twoDTT;
     private int numNodes;
+    private Run client;
 
     public Node (int nodeID, int numNodes) {
         ID = nodeID;
@@ -21,6 +23,11 @@ public class Node {
         log = new Log();
         this.numNodes = numNodes;
         twoDTT = new int[numNodes][numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            for (int j = 0; j < numNodes; j++) {
+                twoDTT[i][j] = 0;
+            }
+        }
         twoDTT[ID-1][ID-1] = clock;
         // init other node's calendars
         otherCals = new Calendar[numNodes];
@@ -30,6 +37,7 @@ public class Node {
             else
                 otherCals[i] = new Calendar();
         }
+        client = new Run();
     }
 
     public int getID() {
@@ -74,23 +82,48 @@ public class Node {
      * return: SUCCESS for no conflict, FAILURE if conflict detected
      */
     public int addCalEvent(Event e) {
-        if (checkForConflict(e) == FAILURE) {
-            return FAILURE;
-        }
-        if (checkForConflict(e) == DAY_OVERLAP_FAILURE)
-            return DAY_OVERLAP_FAILURE;
+        int ret = checkForConflict(e);
+        if (ret == FAILURE || ret == DAY_OVERLAP_FAILURE) 
+            return ret;
+
         clock++;
         twoDTT[ID-1][ID-1] = clock;
         calendar.addEvent(e);
-
-        return SUCCESS; // return 0 on success
+        log.updateLog("INSERT", e, clock, ID); 
+        String tableStr = convertTo1D(twoDTT);
+        ret = sendPartialLog(e, tableStr);
+        return ret; // return 0 on success
     }
 
-    public void removeCalEvent(Event e) {
+    public int sendPartialLog(Event e, String tableStr) {
+        for (int part : e.getParticipants()) {
+            if (part != ID) {
+                String NP = getPartialLog(part);
+                byte [] byteStr = (NP + " TABLE: " + tableStr).getBytes();//+ toString(e, tableStr)).getBytes();
+                try {
+                    client.sendPacket(part, byteStr);
+                } catch (Exception x) {
+                    return BAD_CONNECTION;
+                }
+            }
+        }
+        return SUCCESS;
+    }
+    public int removeCalEvent(Event e) {
         calendar.removeEvent(e);
+        clock++;
+        twoDTT[ID-1][ID-1] = clock;
+        log.updateLog("DELETE", e, clock, ID);
+        String tableStr = convertTo1D(twoDTT);
+        int ret = sendPartialLog(e, tableStr);
+        return ret;
     }
     public void removeCalEvent(String name) {
+        Event e = calendar.getEventByName(name);
         calendar.removeEvent(name);
+        clock++;
+        twoDTT[ID-1][ID-1] = clock;
+        log.updateLog("DELETE", e, clock, ID);
     }
 
     public void updateOthers(int otherID, String eName, String operator) {
@@ -100,8 +133,9 @@ public class Node {
             otherCals[otherID].removeEvent(eName);
     }
 
-    public boolean checkOtherAvail(int otherID, double start, double duration) {
-        return otherCals[otherID].isAvailable(start, duration);
+    public boolean checkOtherAvail(int otherID, double start, double duration,
+            String dayCheck) {
+        return otherCals[otherID].isAvailable(start, duration, dayCheck);
     }
 
     /* Compare start time of event with that time in the calendar and return
@@ -135,9 +169,29 @@ public class Node {
         return SUCCESS; // no conflicts were found!
     }
 
-    public void addEventToLog (Event e) {
-        log.updateLog(INSERT, e, ++clock, ID);
+    public String getPartialLog(int id) {
+        String pl = "";
+        String partStr = "";
+        if (twoDTT[id-1][ID-1] < twoDTT[ID-1][ID-1]) {
+            for (LogEvent eR : log.getLog()) {
+                if (eR.clock <= twoDTT[ID-1][ID-1]) {
+                    for(int i = 0; i < eR.event.getParticipants().length; i++){
+                        partStr += (" " + eR.event.getParticipants()[i]);
+                    }
+                    pl += (" EVENT " + eR.operator + " " + 
+                        eR.event.getName() + " " + 
+                        eR.event.getDay() + " " +
+                        eR.event.getStart() + " " + 
+                        eR.event.getEnd() + " Participants: " + 
+                        partStr + " NodeID: " +
+                        eR.nodeID + " Clock: " + eR.clock);
+                    partStr = "";
+                }
+            }
+        }
+        return pl;
     }
+
     public String toString(Event e, String table) {
         String toSend =  e.getName() + " " + e.getDay() + " " + e.getStart() +
             " " + e.getEnd() + " " + ID + " ";
@@ -207,10 +261,76 @@ public class Node {
             }
             if (dayNum >= 0) {
                 dayStrings[dayNum] += ("<p class=\"event\">"+event.getName()+
-                                "<br>" + event.toTime(event.getStart())+" - "+
-                                    event.toTime(event.getEnd()) + "</p>");
+                        "<br>" + event.toTime(event.getStart())+" - "+
+                        event.toTime(event.getEnd()) + "<br>" + "Participants: ");
+                for (int i = 0; i < event.getParticipants().length; i++) {
+                    if (event.getParticipants()[i] != 0)
+                        dayStrings[dayNum] += (event.getParticipants()[i]+" "); 
+                }
+                dayStrings[dayNum] += "</p>";
             }
         }
         return dayStrings;
+    }
+    public String convertTo1D(int[][] arr) {
+        int count = 0;
+        String str = "";
+        for (int i = 0; i < 4; i++) {
+            while (count < 4) {
+                str+= (arr[i][count] + " ");
+                count++;
+            }
+            count = 0;
+        }
+        return str;
+    }
+    public int[][] convertTo2D(String str) {
+        String[] splitStr = str.split("\\s+");
+        int[][] table = new int[4][4];
+        if (!str.contains("Table") || splitStr.length < 25) {
+            table = new int[1][1];
+            table[0][0] = -1;
+        } else {
+            int count = 9;
+            for (int i = 0; i < 4; i++) {
+                for (int j = 0; j < 4; j++) {
+                    table[i][j] = Integer.parseInt(splitStr[count].trim());
+                    count++;
+                }
+            }
+        }
+        return table;
+    }
+
+    public ArrayList<Event> readLog(String[] str) {
+        ArrayList<Event> eventList = new ArrayList<Event>();
+        ArrayList<Integer> partic = new ArrayList<Integer>();
+        int[] intInvitees;
+        for (int i = 0; i < str.length; i++) {
+            if (str[i].contains("Participants")) {
+                int count = i+1;
+                while (!str[count].contains("NodeID")) {
+                    int guest = Integer.parseInt(str[count].trim());
+                    partic.add(guest);
+                    count++;
+                }
+                if (partic.size() > 0) {
+                    intInvitees = new int[partic.size()];
+                    for (int j = 0; j < partic.size(); j++)
+                        intInvitees[j] = partic.get(j);
+                } else {
+                    intInvitees = new int[1];
+                    intInvitees[0] = ID;
+                }
+                if (!str[i-5].contains("DELETE")) {
+                    Event newE = new Event(str[i-4], str[i-3],
+                        Double.parseDouble(str[i-2]),
+                        Double.parseDouble(str[i-1]), intInvitees);
+                    if (!containsEvent(newE))
+                        eventList.add(newE);
+                }
+            }
+        }
+        return eventList;
     }
 }
