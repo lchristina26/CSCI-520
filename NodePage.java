@@ -34,10 +34,19 @@ public class NodePage extends HttpServlet implements Servlet {
     private String tableStr;
     private String delName;
     private String delEvent;
+    private int myPort;
 
     public NodePage() {
         node = new Node(3, 4);
         dayStrings = new String[7];
+        if (node.getID() == 1)
+            myPort = 11111;
+        else if (node.getID() == 2)
+            myPort = 11112;
+        else if (node.getID() == 3)
+            myPort = 11113;
+        else 
+            myPort = 11114;
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -46,7 +55,7 @@ public class NodePage extends HttpServlet implements Servlet {
 
         response.setContentType("text/html");
         // Set refresh, autoload time as 5 seconds
-        response.addHeader("Refresh", "2");
+        // response.addHeader("Refresh", "2");
 
         session = request.getSession(true);
 
@@ -56,6 +65,7 @@ public class NodePage extends HttpServlet implements Servlet {
         out.println("<h1>Node "+ node.getID() +" Calendar</h1>");
         out.println("<link rel=\"stylesheet\" type=\"text/css\" href=\"" +
                 "./css/style.css\">");
+        out.println("<script src=\"./js/my_js.js\"></script>");
         out.println("</head>");
         out.println("<div class=\"content\">");
         out.println("<body>");
@@ -66,6 +76,7 @@ public class NodePage extends HttpServlet implements Servlet {
 
         //check if Add Event was clicked
         if (addEvent != null) {
+            addEvent = null;
             if (day != null && duration != null && time != null &&
                     invitees != null && eventName != null) {
                 start = Double.parseDouble(time);
@@ -85,11 +96,11 @@ public class NodePage extends HttpServlet implements Servlet {
                 event = new Event(eventName, day, start, end, intInvitees);
                 // try to add event to the node's calendar
                 if (!node.containsEvent(event)) {
-                    //out.println(node.get2DTT()[node.getID()-1][node.getID()-1]);
                     ret = node.addCalEvent(event);
+                    out.println("WEIRD");
                     if (ret == -1) {
                         out.println("<script>");
-                        out.println("alert(\"FAILURE!\")");
+                        out.println("alert(\"COLLISION! Updating calendar...\")");
                         out.println("</script>");
                         //       node.removeCalEvent(event);
                     } else if (ret == -2) {
@@ -122,18 +133,15 @@ public class NodePage extends HttpServlet implements Servlet {
         time = null;
         eventName = null;
         // read for incoming data
-        recvd = client.receivePackets(11113);
+        recvd = client.receivePackets(myPort);
         if (recvd != null) {
-        //    out.println("<p>RECEIVED: "+recvd+"</p>");
+            out.println("<p>RECEIVED: "+recvd+"</p>");
             String[] newStr = recvd.split("\\s+");
             if (recvd.contains("COLLISION")) {
-                node.removeCalEvent(newStr[1].trim());
-            } else if (recvd.contains("DELETE")) {
-                for (int i = 0; i < newStr.length; i++) {
-                    if (newStr[i].contains("DELETE")) {
-                        node.removeCalEvent((newStr[i+1]).trim());
-                    }
-                }
+                out.println("<script>alert(\"COLLISION! Updating "+
+                                            "Calendar\")</script>");
+                Event remEvent = node.getEventByName(newStr[1].trim());
+                node.removeCalEvent(remEvent);
             } else if (newStr.length >= 7) {
                 ArrayList<Event> eList = node.readLog(newStr);
                 for (int i = 0; i < eList.size(); i++) {
@@ -147,19 +155,21 @@ public class NodePage extends HttpServlet implements Servlet {
                                               newStr[newStr.length-1].trim()));
                         }
                     } else if (ret == -1) {
-                        String collision = "COLLISION " + newE.getName();
+                        out.println("<script>alert(\"COLLISION!" +
+                                "SENDING NOTIFICATION\")</script>");
+                        String collision = "COLLISION "+eList.get(i).getName();
                         byte[] coll = collision.getBytes();
-                        String id = newStr[7];
+                        String id = newStr[newStr.length-1].trim();
                         String[] singleIP = {getIP(id)};
                         int[] singlePort = {getPort(Integer.parseInt(id.trim()))};
+                        node.removeCalEvent(eList.get(i));
                         try {
                             client.sendPacket(singleIP, singlePort, coll);
-                            node.removeCalEvent(newE);
                         } catch (Exception e) {
                             out.println("<h3 class=\"red\">CANT SEND</h3>");
                         }
                     } else {
-                        node.removeCalEvent(newE);
+                        node.removeCalEvent(eList.get(i));
                     }
 
                 }
@@ -167,6 +177,29 @@ public class NodePage extends HttpServlet implements Servlet {
         }
         dayStrings = node.getCalendar(); //update days to post to cal
 
+//        out.println("<div id=\"abc\">");
+//        out.println("<div id=\"popupContact\">");
+//        out.println("<form action=\"#\" class=\"form1\" id=\"form1\"" + 
+//                                          "method=\"post\" name=\"form1\">");
+//        out.println("<h3>HELLO</h3>");
+//        // dropdown for the day to add event
+//        out.println("<p>Day: <select id=\"theDay\" name=\"theDay\">");
+//        out.println("<option class=\"op\" value=\"Sunday\">Sunday</option>");
+//        out.println("<option class=\"op\" value=\"Monday\">Monday</option>");
+//        out.println("<option class=\"op\" value=\"Tuesday\">Tuesday</option>");
+//        out.println("<option class=\"op\" value=\"Wednesday\">Wednesday</option>");
+//        out.println("<option class=\"op\" value=\"Thursday\">Thursday</option>");
+//        out.println("<option class=\"op\" value=\"Friday\">Friday</option>");
+//        out.println("<option class=\"op\" value=\"Saturday\">Saturday</option>");
+//        out.println("</select>");
+//        out.println("<button id=\"Add\" onclick=\"div_hide()\">"+
+//                                                        "Add</button>");
+//        out.println("</form>");
+//        out.println("</div>");
+//        out.println("</div>");
+//        out.println("<button id=\"popup\" onclick=\"div_show()\">"+
+//                                                        "Popup</button>");
+//
         //out.println("<script>alert(availability)</script>");
         out.println("<h3>ADD NEW EVENT TO CALENDAR</h3>");
 
@@ -272,6 +305,7 @@ public class NodePage extends HttpServlet implements Servlet {
     public void clearStrings() {
         node.resetCalendar();
         node.resetLog();
+        node.resetTable();
         dayStrings = node.getCalendar();
     }
 

@@ -16,6 +16,13 @@ public class Log {
         logEvents.add(newEvent);
     }
 
+    public void removeLE(Event e) {
+        for (int i = 0; i < logEvents.size(); i++) {
+            if (logEvents.get(i).event.getName().contains(e.getName())) {
+                logEvents.remove(i);
+            }
+        }
+    }
     public ArrayList<LogEvent> getLog() {
         return logEvents;
     }

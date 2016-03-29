@@ -9,6 +9,7 @@ public class Node {
     private int SUCCESS = 0;
     private int FAILURE = -1;
     private int DAY_OVERLAP_FAILURE = -2;
+    private int DUPLICATE = 2;
     private int BAD_CONNECTION = -3;
     private int INSERT = 1;
     private int DELETE = 0;
@@ -85,7 +86,8 @@ public class Node {
         int ret = checkForConflict(e);
         if (ret == FAILURE || ret == DAY_OVERLAP_FAILURE) 
             return ret;
-
+        if (ret == DUPLICATE)
+            return SUCCESS;
         clock++;
         twoDTT[ID-1][ID-1] = clock;
         calendar.addEvent(e);
@@ -100,7 +102,7 @@ public class Node {
             if (k != ID) {
                 String NP = getPartialLog(k);
                 byte [] byteStr = (NP + " TABLE: " + tableStr + " ID " + ID).
-                            getBytes();
+                    getBytes();
                 try {
                     client.sendPacket(k, byteStr);
                 } catch (Exception x) {
@@ -127,18 +129,6 @@ public class Node {
         log.updateLog("DELETE", e, clock, ID);
     }
 
-    public void updateOthers(int otherID, String eName, String operator) {
-        if (operator.equals("insert"))
-            otherCals[otherID].addEvent(eName);
-        else if (operator.equals("delete"))
-            otherCals[otherID].removeEvent(eName);
-    }
-
-    public boolean checkOtherAvail(int otherID, double start, double duration,
-            String dayCheck) {
-        return otherCals[otherID].isAvailable(start, duration, dayCheck);
-    }
-
     /* Compare start time of event with that time in the calendar and return
      * success if that start time is empty up to the event to add duration
      */
@@ -149,19 +139,34 @@ public class Node {
         boolean conflict = false;
         double start = e.getStart();
         double end = e.getEnd();
+        for (Event ev : events) {
+            if (ev.getName().contains(e.getName())) {
+                return DUPLICATE;
+            }
+        }
         if (((end - start) <= 0) || (e.getEventLength() > 23.5))
             return DAY_OVERLAP_FAILURE;
         // sort through all events to check for conflict
         for (int i = 0; i < numEvents; i++) {
+            Event ev = events.get(i);
             // if the start time of e is already taken return a failure
-            if (events.get(i).getStart() == start) {
-                return FAILURE;
-            } else {
-                // if an empty slot is found, check if there is enough time
-                // to add event, if not return a failure
-                for (double j = start; j < length; j+=0.5) {
-                    if (j == events.get(i).getStart()) {
-                        return FAILURE;
+            if (ev.getDay().contains(e.getDay())) {
+                for (double m = start; m < length; m+=0.5) {
+                    if (m == ev.getStart()) {
+                        for (int j = 0; j < ev.getParticipants().length; j++) {
+                            for (int k = 0; k < e.getParticipants().length; k++) {
+                                if (e.getParticipants()[k] ==
+                                        ev.getParticipants()[j]){
+                                   // for (LogEvent l : log.getLog()) {
+                                   //     if (l.event.getName().contains(
+                                   //                 ev.getName())) {
+                                   //         log.removeLE(ev);
+                                   //     }
+                                   // }
+                                    return FAILURE;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -180,12 +185,12 @@ public class Node {
                         partStr += (" " + eR.event.getParticipants()[i]);
                     }
                     pl += (" EVENT " + eR.operator + " " + 
-                        eR.event.getName() + " " + 
-                        eR.event.getDay() + " " +
-                        eR.event.getStart() + " " + 
-                        eR.event.getEnd() + " Participants: " + 
-                        partStr + " NodeID: " +
-                        eR.nodeID + " Clock: " + eR.clock);
+                            eR.event.getName() + " " + 
+                            eR.event.getDay() + " " +
+                            eR.event.getStart() + " " + 
+                            eR.event.getEnd() + " Participants: " + 
+                            partStr + " NodeID: " +
+                            eR.nodeID + " Clock: " + eR.clock);
                     partStr = "";
                 }
             }
@@ -205,6 +210,10 @@ public class Node {
 
     public void resetCalendar() {
         calendar = new Calendar();
+    }
+
+    public void resetTable() {
+        twoDTT = new int[numNodes][numNodes];
     }
 
     public void resetLog() {
@@ -265,14 +274,20 @@ public class Node {
                     break;
             }
             if (dayNum >= 0) {
-                dayStrings[dayNum] += ("<p class=\"event\">"+event.getName()+
-                        "<br>" + event.toTime(event.getStart())+" - "+
-                        event.toTime(event.getEnd()) + "<br>" + "Participants: ");
-                for (int i = 0; i < event.getParticipants().length; i++) {
-                    if (event.getParticipants()[i] != 0)
-                        dayStrings[dayNum] += (event.getParticipants()[i]+" "); 
+                if (!dayStrings[dayNum].contains(event.getName())) {
+                    dayStrings[dayNum] += ("<p class=\"event\">"+
+                            event.getName()+
+                            "<br>" + event.toTime(event.getStart())+" - "+
+                            event.toTime(event.getEnd()) + "<br>" + 
+                            "Participants: ");
+                    for (int i = 0; i < event.getParticipants().length; i++) {
+                        if (event.getParticipants()[i] != 0) {
+                            dayStrings[dayNum] += (event.getParticipants()[i]
+                                    +" "); 
+                        }
+                    }
+                    dayStrings[dayNum] += "</p><hr>";
                 }
-                dayStrings[dayNum] += "</p>";
             }
         }
         return dayStrings;
@@ -329,10 +344,20 @@ public class Node {
                 }
                 if (!str[i-5].contains("DELETE")) {
                     Event newE = new Event(str[i-4], str[i-3],
-                        Double.parseDouble(str[i-2]),
-                        Double.parseDouble(str[i-1]), intInvitees);
+                            Double.parseDouble(str[i-2]),
+                            Double.parseDouble(str[i-1]), intInvitees);
                     if (!containsEvent(newE))
                         eventList.add(newE);
+                } else {
+                    for (int j = 0; j < str.length; j++) {
+                        Event remE = getEventByName(str[i-4].trim());
+                        if (str[i-4].trim() == str[j]) {
+                            if (eventList.contains(remE)) {
+                                eventList.remove(remE);
+                            }
+                            removeCalEvent(remE);
+                        }   
+                    }
                 }
                 partic = new ArrayList<Integer>();
             }
