@@ -8,6 +8,7 @@ import javax.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class NodePage extends HttpServlet implements Servlet {
 
@@ -20,24 +21,22 @@ public class NodePage extends HttpServlet implements Servlet {
     private HttpSession session;
     private Node node;
     private Event event;
-    private Event newE;
     private String eventName;
-    private double start;
-    private double end;
     private String[] invitees;
     private String IP;
     private Run client;
     private int[] ports;
     private String[] ips;
-    private String recvd = "";
-    private int[][] table;
-    private String tableStr;
     private String delName;
     private String delEvent;
     private int myPort;
+    private int[] intInvitees;
+    private String getCrash;
+    private String getFail;
+    private String backUp;
 
     public NodePage() {
-        node = new Node(3, 4);
+        node = new Node(4, 4);
         dayStrings = new String[7];
         if (node.getID() == 1)
             myPort = 11111;
@@ -51,14 +50,14 @@ public class NodePage extends HttpServlet implements Servlet {
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         int ret = 0;
-        int[] intInvitees;
+        boolean nodeDown = false;
 
         response.setContentType("text/html");
         // Set refresh, autoload time as 5 seconds
         // response.addHeader("Refresh", "2");
 
         session = request.getSession(true);
-
+        
         PrintWriter out = response.getWriter();
         out.println("<html>");
         out.println("<head>");
@@ -67,49 +66,37 @@ public class NodePage extends HttpServlet implements Servlet {
                 "./css/style.css\">");
         out.println("<script src=\"./js/my_js.js\"></script>");
         out.println("</head>");
-        out.println("<div class=\"content\">");
+    //    out.println("<div class=\"content\">");
         out.println("<body>");
+        if (getCrash != null || getFail != null) {
+            nodeDown = true;
+        }
+        getCrash = null;
+        getFail = null;
+
+        if (backUp != null)
+            nodeDown = false;
+        backUp = null;
         if (clearCal != null) {
             clearStrings();
         }
         clearCal = null;
 
+        if (!nodeDown) {
         //check if Add Event was clicked
         if (addEvent != null) {
             addEvent = null;
             if (day != null && duration != null && time != null &&
                     invitees != null && eventName != null) {
-                start = Double.parseDouble(time);
-                end = start + Double.parseDouble(duration);
-                if (!invitees[0].contains("None")) {
-                    intInvitees = new int[invitees.length+1];
-                    intInvitees[0] = node.getID();
-                    for (int i = 1; i < invitees.length+1; i++) {
-                        //out.println("Invitees "+i+": "+invitees[i-1]);
-                        intInvitees[i] = Integer.parseInt(invitees[i-1]);
-                    }
-                    
+                double start = Double.parseDouble(time);
+                double end = start + Double.parseDouble(duration);
+                //check if multi-day event
+                if (end > 23.5) {
+                    out.println("<script>");
+                    out.println("alert(\"Event Can't Be Multi-Day!\")");
+                    out.println("</script>");
                 } else {
-                    intInvitees = new int[1];
-                    intInvitees[0] = node.getID();
-                }
-                event = new Event(eventName, day, start, end, intInvitees);
-                // try to add event to the node's calendar
-                if (!node.containsEvent(event)) {
-                    ret = node.addCalEvent(event);
-                    out.println("WEIRD");
-                    if (ret == -1) {
-                        out.println("<script>");
-                        out.println("alert(\"COLLISION! Updating calendar...\")");
-                        out.println("</script>");
-                        //       node.removeCalEvent(event);
-                    } else if (ret == -2) {
-                        out.println("<p>DAY OVERLAPS NOT ALLOWED!<br></p>");
-                        node.removeCalEvent(event);
-                    } else if (ret == -3) {
-                        out.println("<p>BAD CONNECTION! Resend.</p>");
-                        node.removeCalEvent(event);
-                    }
+                    out.println(addEventFunc(start, end));
                 }
             }
         }
@@ -117,7 +104,7 @@ public class NodePage extends HttpServlet implements Servlet {
 
         // If the delete button was clicked, attempt to delete event
         if (delEvent != null) {
-            Event toDelete = node.getEventByName(delName);
+            Event toDelete = node.getEventByName(delName.trim());
             if (toDelete != null) {
                 ret = node.removeCalEvent(toDelete);
                 if (ret == -3) {
@@ -133,74 +120,30 @@ public class NodePage extends HttpServlet implements Servlet {
         time = null;
         eventName = null;
         // read for incoming data
+        String recvd = "";
         recvd = client.receivePackets(myPort);
-        if (recvd != null) {
-            out.println("<p>RECEIVED: "+recvd+"</p>");
+        if (!recvd.equals("")) {
+            //out.println("<p>RECEIVED: "+recvd+"</p>");
             String[] newStr = recvd.split("\\s+");
-            if (recvd.contains("COLLISION")) {
-                out.println("<script>alert(\"COLLISION! Updating "+
-                                            "Calendar\")</script>");
-                Event remEvent = node.getEventByName(newStr[1].trim());
-                node.removeCalEvent(remEvent);
-            } else if (newStr.length >= 7) {
-                ArrayList<Event> eList = node.readLog(newStr);
-                for (int i = 0; i < eList.size(); i++) {
-                    ret = node.addCalEvent(eList.get(i));
-                    if (ret == 0) {
-                        table = convertTo2D(recvd);
-                        if (table[0].length != 4) {
-                            out.println("<h3 class=\"red\">BAD TABLE!</h3>");
-                        } else {
-                            node.updateTT(table, Integer.parseInt(
-                                              newStr[newStr.length-1].trim()));
-                        }
-                    } else if (ret == -1) {
-                        out.println("<script>alert(\"COLLISION!" +
-                                "SENDING NOTIFICATION\")</script>");
-                        String collision = "COLLISION "+eList.get(i).getName();
-                        byte[] coll = collision.getBytes();
-                        String id = newStr[newStr.length-1].trim();
-                        String[] singleIP = {getIP(id)};
-                        int[] singlePort = {getPort(Integer.parseInt(id.trim()))};
-                        node.removeCalEvent(eList.get(i));
-                        try {
-                            client.sendPacket(singleIP, singlePort, coll);
-                        } catch (Exception e) {
-                            out.println("<h3 class=\"red\">CANT SEND</h3>");
-                        }
-                    } else {
-                        node.removeCalEvent(eList.get(i));
-                    }
-
-                }
-            } 
+            ArrayList<String[]> recStr = getRecvStr(newStr);
+            for (int i = 0; i < recStr.size(); i++) {
+               // out.println(recStr.get(i)[0]);
+                String tableStr = getTableStr(recStr.get(i));
+               // out.println("<p>TABLE:"+tableStr+"</p>");
+               // out.print("<p> My TABLE: ");
+               // for(int x = 0; x < node.get2DTT()[0].length; x++) {
+               //     for (int y = 0; y < node.get2DTT()[0].length; y++) {
+               //         out.print(node.get2DTT()[x][y]+" ");
+               //     }
+               // }
+               // out.println("</p>");
+                out.println(getRecOutput(tableStr, recStr.get(i), recvd));
+               // out.println("<p>HELLO</p>");
+            }
         }
         dayStrings = node.getCalendar(); //update days to post to cal
-
-//        out.println("<div id=\"abc\">");
-//        out.println("<div id=\"popupContact\">");
-//        out.println("<form action=\"#\" class=\"form1\" id=\"form1\"" + 
-//                                          "method=\"post\" name=\"form1\">");
-//        out.println("<h3>HELLO</h3>");
-//        // dropdown for the day to add event
-//        out.println("<p>Day: <select id=\"theDay\" name=\"theDay\">");
-//        out.println("<option class=\"op\" value=\"Sunday\">Sunday</option>");
-//        out.println("<option class=\"op\" value=\"Monday\">Monday</option>");
-//        out.println("<option class=\"op\" value=\"Tuesday\">Tuesday</option>");
-//        out.println("<option class=\"op\" value=\"Wednesday\">Wednesday</option>");
-//        out.println("<option class=\"op\" value=\"Thursday\">Thursday</option>");
-//        out.println("<option class=\"op\" value=\"Friday\">Friday</option>");
-//        out.println("<option class=\"op\" value=\"Saturday\">Saturday</option>");
-//        out.println("</select>");
-//        out.println("<button id=\"Add\" onclick=\"div_hide()\">"+
-//                                                        "Add</button>");
-//        out.println("</form>");
-//        out.println("</div>");
-//        out.println("</div>");
-//        out.println("<button id=\"popup\" onclick=\"div_show()\">"+
-//                                                        "Popup</button>");
-//
-        //out.println("<script>alert(availability)</script>");
+        addEvent = null;
+        }
         out.println("<h3>ADD NEW EVENT TO CALENDAR</h3>");
 
         out.println("<P>");
@@ -282,9 +225,33 @@ public class NodePage extends HttpServlet implements Servlet {
         out.println("<input type=\"submit\" class=\"conButton\"" + 
                 " value=\"Delete Event\">"); 
         out.println("</form>");
+        // Crash
+        out.println("<P>");
+        out.print("<form action=\"\"");
+        out.println("method=POST>");
+        out.println("<input type=hidden name=\"crash\" value=\"crashNode\">");
+        out.println("<input type=\"submit\" class=\"crashButton\"" + 
+                " value=\"Crash\">"); 
+        out.println("</form>");
+        // Fail
+        out.println("<P>");
+        out.print("<form action=\"\"");
+        out.println("method=POST>");
+        out.println("<input type=hidden name=\"fail\" value=\"failNode\">");
+        out.println("<input type=\"submit\" class=\"crashButton\"" + 
+                " value=\"Fail\">"); 
+        out.println("</form>");
+        // Bring node online
+        out.println("<P>");
+        out.print("<form action=\"\"");
+        out.println("method=POST>");
+        out.println("<input type=hidden name=\"backOn\" value=\"onNode\">");
+        out.println("<input type=\"submit\" class=\"conButton\"" + 
+                " value=\"Make Live\">"); 
+        out.println("</form>");
 
 
-        out.println("</div>");
+        //out.println("</div>");
         out.println("</body>");
         out.println("</html>");
         out.close();
@@ -300,6 +267,9 @@ public class NodePage extends HttpServlet implements Servlet {
         invitees = request.getParameterValues("invitees");
         delName = request.getParameter("deleteName");
         delEvent = request.getParameter("delete");
+        getCrash = request.getParameter("crash");
+        getFail = request.getParameter("fail");
+        backUp = request.getParameter("backOn");
         doGet(request, response);
     }
     public void clearStrings() {
@@ -362,11 +332,126 @@ public class NodePage extends HttpServlet implements Servlet {
     public int[][] convertTo2D(String str) {
         String[] splitStr = str.split("\\s+");
         int[][] table = new int[4][4];
-        int count = splitStr.length - 18;
+        int count = 0;
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
                 table[i][j] = Integer.parseInt(splitStr[count].trim());
                 count++;
+            }
+        }
+        return table;
+    }
+    public String addEventFunc(double start, double end) {
+        int ret;
+        String str = "";
+        if (!invitees[0].contains("None")) {
+            intInvitees = new int[invitees.length+1];
+            intInvitees[0] = node.getID();
+            for (int i = 1; i < invitees.length+1; i++) {
+                intInvitees[i] = Integer.parseInt(invitees[i-1]);
+            }
+
+        } else {
+            intInvitees = new int[1];
+            intInvitees[0] = node.getID();
+        }
+        event = new Event(eventName, day, start, end, intInvitees);
+        // try to add event to the node's calendar
+        if (!node.containsEvent(event)) {
+            ret = node.addCalEvent(event);
+            if (ret == -1) {
+                str +=("<script>");
+                str += ("alert(\"COLLISION! Updating calendar...\")");
+                str += ("</script>");
+                //       node.removeCalEvent(event);
+            } else if (ret == -2) {
+                str += ("<p>DAY OVERLAPS NOT ALLOWED!<br></p>");
+                //node.removeCalEvent(event);
+            } else if (ret == -3) {
+                str += ("<p>BAD CONNECTION! Resend.</p>");
+                node.removeCalEvent(event, "r");
+            }
+        }
+        return str;
+    }
+
+    public ArrayList<String[]> getRecvStr(String[] rec) {
+        ArrayList <String> recStr = new ArrayList<String>();
+        ArrayList <String[]> recArrs = new ArrayList<String[]>();
+        int count = 0;
+        int arrCount = 0;
+        for (int i = 0; i < rec.length; i++) {
+            if (rec[i].equals("ID")) {
+                count = i+1;
+                while (!rec[count].contains("EVENT")) {
+                    recStr.add(rec[count]);
+                    count--;
+                }
+                //recArrs.get(arrCount) = new String[recStr.size()];
+                Collections.reverse(recStr);
+                recArrs.add(recStr.toArray(new String[recStr.size()]));
+                arrCount++;
+                recStr = new ArrayList<String>();
+            }
+        }
+        return recArrs;
+    }
+    public String getRecOutput(String tableStr, String[] rec, String collide) {
+        String outStr = "";
+        int[][] table;
+        int ret;
+            if (collide.contains("COLLISION")) {
+               outStr += ("<script>alert(\"COLLISION! Updating "+
+                        "Calendar\")</script>");
+                Event remEvent = node.getEventByName(rec[1].trim());
+                node.removeCalEvent(remEvent, "r");
+            } else if (rec.length >= 7) {
+                ArrayList<Event> eList = node.readLog(rec);
+                for (int i = 0; i < eList.size(); i++) {
+                    ret = node.addCalEvent(eList.get(i), "r");
+                    if (ret == 0) {
+                        table = convertTo2D(tableStr);
+                        if (table[0].length != 4) {
+                            outStr += ("<h3 class=\"red\">BAD TABLE!</h3>");
+                        } else {
+                            node.updateTT(table, Integer.parseInt(
+                                        rec[rec.length-1].trim()));
+                        }
+                    } else if (ret == -1) {
+                        outStr += ("<script>alert(\"COLLISION!" +
+                                "SENDING NOTIFICATION\")</script>");
+                        String collision = "COLLISION "+eList.get(i).getName();
+                        byte[] coll = collision.getBytes();
+                        String id = rec[rec.length-1].trim();
+                        String[] singleIP = {getIP(id)};
+                        int[] singlePort = {getPort(Integer.parseInt(id.trim()))};
+                        node.removeCalEvent(eList.get(i), "r");
+                        try {
+                            client.sendPacket(singleIP, singlePort, coll);
+                        } catch (Exception e) {
+                            outStr +=("<h3 class=\"red\">CANT SEND</h3>");
+                        }
+                    } else {
+                        outStr += ("<script>");
+                        outStr += ("alert(\"REMOVING\")");
+                        outStr += ("</script>");
+                        node.removeCalEvent(eList.get(i), "r");
+                    }
+
+                }
+            } 
+        return outStr;
+    }
+    public String getTableStr(String[] rec) {
+        String table = "";
+        int count = 0;
+        for (int i = 0; i < rec.length; i++) {
+            if (rec[i].equals("TABLE:")) {
+                count = i+1;
+                while (count < (i+1+16)) {
+                    table += (rec[count] + " ");
+                    count++;
+                }
             }
         }
         return table;

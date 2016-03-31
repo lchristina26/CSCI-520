@@ -26,7 +26,7 @@ public class Run
                 try {
                     if (recvSock == null)
                         recvSock = new DatagramSocket(port);
-                    byte[] data = new byte[1024];
+                    byte[] data = new byte[8092];
                     DatagramPacket recvPacket = new DatagramPacket(data,
                             data.length);
                     recvSock.setSoTimeout(500);

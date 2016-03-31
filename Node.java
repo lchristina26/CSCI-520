@@ -86,8 +86,6 @@ public class Node {
         int ret = checkForConflict(e);
         if (ret == FAILURE || ret == DAY_OVERLAP_FAILURE) 
             return ret;
-        if (ret == DUPLICATE)
-            return SUCCESS;
         clock++;
         twoDTT[ID-1][ID-1] = clock;
         calendar.addEvent(e);
@@ -97,10 +95,21 @@ public class Node {
         return ret; // return 0 on success
     }
 
+    public int addCalEvent(Event e, String recv) {
+        int ret = checkForConflict(e);
+        if (ret == FAILURE || ret == DAY_OVERLAP_FAILURE) 
+            return ret;
+        clock++;
+        twoDTT[ID-1][ID-1] = clock;
+        calendar.addEvent(e);
+        log.updateLog("INSERT", e, clock, ID); 
+        return ret; // return 0 on success
+    }
+
     public int sendPartialLog(String tableStr) {
         for (int k = 1; k < numNodes+1; k++) {
             if (k != ID) {
-                String NP = getPartialLog(k);
+                String NP = getPartialLog(k);//ERROR here when send 
                 byte [] byteStr = (NP + " TABLE: " + tableStr + " ID " + ID).
                     getBytes();
                 try {
@@ -121,6 +130,13 @@ public class Node {
         int ret = sendPartialLog(tableStr);
         return ret;
     }
+    public int removeCalEvent(Event e, String recv) {
+        calendar.removeEvent(e);
+        clock++;
+        twoDTT[ID-1][ID-1] = clock;
+        log.updateLog("DELETE", e, clock, ID);
+        return 0;
+    }
     public void removeCalEvent(String name) {
         Event e = calendar.getEventByName(name);
         calendar.removeEvent(name);
@@ -133,46 +149,42 @@ public class Node {
      * success if that start time is empty up to the event to add duration
      */
     public int checkForConflict(Event e) {
-        double length = e.getEventLength();
         ArrayList<Event> events = calendar.getEvents();
         int numEvents = events.size();
-        boolean conflict = false;
         double start = e.getStart();
         double end = e.getEnd();
-        for (Event ev : events) {
-            if (ev.getName().contains(e.getName())) {
-                return DUPLICATE;
-            }
-        }
-        if (((end - start) <= 0) || (e.getEventLength() > 23.5))
-            return DAY_OVERLAP_FAILURE;
+       // for (Event ev : events) {
+       //     if (ev.getName().equals(e.getName())) {
+       //         return SUCCESS;
+       //     }
+       // }
         // sort through all events to check for conflict
         for (int i = 0; i < numEvents; i++) {
             Event ev = events.get(i);
             // if the start time of e is already taken return a failure
             if (ev.getDay().contains(e.getDay())) {
-                for (double m = start; m < length; m+=0.5) {
-                    if (m == ev.getStart()) {
-                        for (int j = 0; j < ev.getParticipants().length; j++) {
-                            for (int k = 0; k < e.getParticipants().length; k++) {
-                                if (e.getParticipants()[k] ==
-                                        ev.getParticipants()[j]){
-                                   // for (LogEvent l : log.getLog()) {
-                                   //     if (l.event.getName().contains(
-                                   //                 ev.getName())) {
-                                   //         log.removeLE(ev);
-                                   //     }
-                                   // }
-                                    return FAILURE;
-                                }
-                            }
+                if (!checkTime(start, end, ev, e))
+                    return FAILURE;
+            }
+        }
+
+        return SUCCESS; // no conflicts were found!
+    }
+
+    public boolean checkTime(double start, double end, Event ev, Event e) {
+        double length = e.getEventLength();
+        for (double m = start; m < length; m+=0.5) {
+            if (m == ev.getStart()) {
+                for (int j = 0; j < ev.getParticipants().length; j++) {
+                    for (int k = 0; k < e.getParticipants().length; k++) {
+                        if (e.getParticipants()[k] == ev.getParticipants()[j]){
+                            return false;
                         }
                     }
                 }
             }
         }
-
-        return SUCCESS; // no conflicts were found!
+        return true;
     }
 
     public String getPartialLog(int id) {
@@ -198,21 +210,12 @@ public class Node {
         return pl;
     }
 
-    public String toString(Event e, String table) {
-        String toSend =  e.getName() + " " + e.getDay() + " " + e.getStart() +
-            " " + e.getEnd() + " " + ID + " ";
-        for (int i = 0; i < e.getParticipants().length; i++) {
-            toSend += (e.getParticipants()[i]+ " ");
-        }
-        toSend += ("Table " + table);
-        return toSend;
-    }
-
     public void resetCalendar() {
         calendar = new Calendar();
     }
 
     public void resetTable() {
+        clock = 0;
         twoDTT = new int[numNodes][numNodes];
     }
 
@@ -304,23 +307,6 @@ public class Node {
         }
         return str;
     }
-    public int[][] convertTo2D(String str) {
-        String[] splitStr = str.split("\\s+");
-        int[][] table = new int[4][4];
-        if (!str.contains("Table") || splitStr.length < 25) {
-            table = new int[1][1];
-            table[0][0] = -1;
-        } else {
-            int count = 9;
-            for (int i = 0; i < 4; i++) {
-                for (int j = 0; j < 4; j++) {
-                    table[i][j] = Integer.parseInt(splitStr[count].trim());
-                    count++;
-                }
-            }
-        }
-        return table;
-    }
 
     public ArrayList<Event> readLog(String[] str) {
         ArrayList<Event> eventList = new ArrayList<Event>();
@@ -348,14 +334,24 @@ public class Node {
                             Double.parseDouble(str[i-1]), intInvitees);
                     if (!containsEvent(newE))
                         eventList.add(newE);
-                } else {
                     for (int j = 0; j < str.length; j++) {
                         Event remE = getEventByName(str[i-4].trim());
-                        if (str[i-4].trim() == str[j]) {
+                        if (str[j].trim().equals(str[i-4].trim()) && 
+                                str[j-1].trim().contains("DELETE")) {
                             if (eventList.contains(remE)) {
                                 eventList.remove(remE);
                             }
-                            removeCalEvent(remE);
+                            removeCalEvent(remE, "r");
+                        }
+                    }   
+                } else {
+                    for (int j = 0; j < str.length; j++) {
+                        Event remE = getEventByName(str[i-4].trim());
+                        if (str[i-4].trim().equals(str[j].trim())) {
+                            if (eventList.contains(remE)) {
+                                eventList.remove(remE);
+                            }
+                            removeCalEvent(remE, "r");
                         }   
                     }
                 }
